@@ -51,11 +51,17 @@ export const generatePodcast = createServerFn({ method: "POST" })
     let lastText = "";
 
     for (const url of candidates) {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: data.topic }),
-      });
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: data.topic }),
+        });
+      } catch (error) {
+        console.error("Podcast webhook request failed", url, error);
+        continue;
+      }
 
       const text = await response.text();
       lastStatus = response.status;
@@ -76,19 +82,26 @@ export const generatePodcast = createServerFn({ method: "POST" })
       const audioFile = findAudioUrl(raw);
       if (!audioFile) {
         console.error("Podcast webhook returned no audio link", url, text.slice(0, 500));
-        throw new Error("The podcast service did not return an audio link.");
+        return { audioFile: null, error: "The podcast service did not return an audio link." };
       }
 
-      return { audioFile };
+      return { audioFile, error: null };
     }
 
     if (lastStatus === 404 && lastText.includes("not registered")) {
-      throw new Error(
-        "The podcast workflow isn't listening right now. Activate it (or click Execute workflow for the test link) and try again.",
-      );
+      return {
+        audioFile: null,
+        error:
+          "The podcast workflow isn't listening right now. Activate it (or click Execute workflow for the test link) and try again.",
+      };
     }
 
-    throw new Error(`Podcast service returned ${lastStatus}`);
+    return {
+      audioFile: null,
+      error: lastStatus
+        ? `Podcast service returned ${lastStatus}. Please try again.`
+        : "Oops! Something went wrong. Please try again",
+    };
   });
 
 
