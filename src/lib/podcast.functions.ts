@@ -39,32 +39,56 @@ export const generatePodcast = createServerFn({ method: "POST" })
       process.env["N8N_WEBHOOK_URL"] ??
       "https://hasan1.app.n8n.cloud/webhook-test/5546ab25-4fef-42ef-b477-1d9d96cfbbf4";
 
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: data.topic }),
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-      console.error("Podcast webhook error", response.status, text.slice(0, 500));
-      throw new Error(`Podcast service returned ${response.status}`);
+    // Try the configured URL, then the sibling test/production variant.
+    const candidates = [webhookUrl];
+    if (webhookUrl.includes("/webhook-test/")) {
+      candidates.push(webhookUrl.replace("/webhook-test/", "/webhook/"));
+    } else if (webhookUrl.includes("/webhook/")) {
+      candidates.push(webhookUrl.replace("/webhook/", "/webhook-test/"));
     }
 
-    let raw: unknown = null;
-    try {
-      raw = JSON.parse(text);
-    } catch {
-      raw = text;
+    let lastStatus = 0;
+    let lastText = "";
+
+    for (const url of candidates) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: data.topic }),
+      });
+
+      const text = await response.text();
+      lastStatus = response.status;
+      lastText = text;
+
+      if (!response.ok) {
+        console.error("Podcast webhook error", url, response.status, text.slice(0, 500));
+        continue;
+      }
+
+      let raw: unknown = null;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        raw = text;
+      }
+
+      const audioFile = findAudioUrl(raw);
+      if (!audioFile) {
+        console.error("Podcast webhook returned no audio link", url, text.slice(0, 500));
+        throw new Error("The podcast service did not return an audio link.");
+      }
+
+      return { audioFile };
     }
 
-    const audioFile = findAudioUrl(raw);
-    if (!audioFile) {
-      console.error("Podcast webhook returned no audio link", text.slice(0, 500));
-      throw new Error("Podcast service did not return an audio link");
+    if (lastStatus === 404 && lastText.includes("not registered")) {
+      throw new Error(
+        "The podcast workflow isn't listening right now. Activate it (or click Execute workflow for the test link) and try again.",
+      );
     }
 
-    return { audioFile };
+    throw new Error(`Podcast service returned ${lastStatus}`);
   });
+
 
