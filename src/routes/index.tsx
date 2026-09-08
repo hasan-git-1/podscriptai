@@ -57,7 +57,8 @@ function PodcastGenerator() {
       setAudioFile(result.audioFile);
       setTopic("");
     } catch (err) {
-      setError("Oops! Something went wrong. Please try again");
+      const message = err instanceof Error && err.message ? err.message : "";
+      setError(message || "Oops! Something went wrong. Please try again");
     } finally {
       setIsLoading(false);
     }
