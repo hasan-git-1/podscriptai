@@ -54,8 +54,12 @@ function PodcastGenerator() {
 
     try {
       const result = await generatePodcastFn({ data: { topic: topic.trim() } });
-      setAudioFile(result.audioFile);
-      setTopic("");
+      if (result.audioFile) {
+        setAudioFile(result.audioFile);
+        setTopic("");
+      } else {
+        setError(result.error || "Oops! Something went wrong. Please try again");
+      }
     } catch (err) {
       const message = err instanceof Error && err.message ? err.message : "";
       setError(message || "Oops! Something went wrong. Please try again");
