@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+
+import { generatePodcast } from "@/lib/podcast.functions";
 
 export const Route = createFileRoute("/")({
   component: PodcastGenerator,
@@ -36,19 +39,28 @@ function LoadingDots() {
 
 function PodcastGenerator() {
   const [topic, setTopic] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [audioFile, setAudioFile] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = () => {
-    if (!topic.trim()) return;
+  const generatePodcastFn = useServerFn(generatePodcast);
 
-    setIsGenerating(true);
-    setHasGenerated(false);
+  const handleGenerate = async () => {
+    if (!topic.trim() || isLoading) return;
 
-    setTimeout(() => {
-      setIsGenerating(false);
-      setHasGenerated(true);
-    }, 2500);
+    setIsLoading(true);
+    setAudioFile(null);
+    setError(null);
+
+    try {
+      const result = await generatePodcastFn({ data: { topic: topic.trim() } });
+      setAudioFile(result.audioFile);
+      setTopic("");
+    } catch (err) {
+      setError("Oops! Something went wrong. Please try again");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -88,7 +100,7 @@ function PodcastGenerator() {
 
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || !topic.trim()}
+            disabled={isLoading || !topic.trim()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-semibold text-primary-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:text-lg"
           >
             <span aria-hidden>🔊</span>
@@ -100,31 +112,34 @@ function PodcastGenerator() {
           className="mt-8 flex min-h-40 flex-col items-center justify-center rounded-3xl bg-secondary p-6 text-center transition-all"
           aria-live="polite"
         >
-          {isGenerating ? (
+          {isLoading ? (
             <div className="space-y-3">
               <LoadingDots />
-              <p className="text-sm font-medium text-secondary-foreground">Generating your podcast...</p>
+              <p className="text-sm font-medium text-secondary-foreground">Creating podcast... please wait!</p>
             </div>
-          ) : hasGenerated ? (
+          ) : error ? (
             <div className="space-y-2">
               <span className="text-3xl" aria-hidden>
-                🎧
+                😅
               </span>
-              <p className="text-base font-semibold text-secondary-foreground">
-                Feature coming soon!
-              </p>
-              <p className="text-sm text-muted-foreground">
-                We’re still teaching the studio how to record.
-              </p>
+              <p className="text-base font-medium text-destructive">{error}</p>
+            </div>
+          ) : audioFile ? (
+            <div className="w-full space-y-4">
+              <div className="flex items-center justify-center gap-2 text-base font-semibold text-secondary-foreground">
+                <span aria-hidden>🎉</span>
+                <span>Podcast is ready! Click play to listen</span>
+              </div>
+              <audio controls src={audioFile} className="w-full rounded-2xl">
+                Your browser does not support the audio element.
+              </audio>
             </div>
           ) : (
             <div className="space-y-2">
               <span className="text-3xl" aria-hidden>
                 🎵
               </span>
-              <p className="text-base font-medium text-muted-foreground">
-                Podcast will appear here.
-              </p>
+              <p className="text-base font-medium text-muted-foreground">Podcast will appear here.</p>
             </div>
           )}
         </div>
