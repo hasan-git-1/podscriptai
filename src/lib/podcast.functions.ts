@@ -10,7 +10,7 @@ const generatePodcastOutputSchema = z.object({
 });
 
 export const generatePodcast = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => generatePodcastInputSchema.parse(input))
+  .validator((input: unknown) => generatePodcastInputSchema.parse(input))
   .handler(async ({ data }) => {
     const webhookUrl =
       process.env["N8N_WEBHOOK_URL"] ??
